@@ -35,10 +35,26 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                     assertThat(row.get("script")).isEqualTo("V1__audit.sql");
                     assertThat(row.get("success")).isEqualTo(true);
                 });
+
+        assertThat(applied)
+                .as("V2 precisa constar no historico do Flyway")
+                .anySatisfy(row -> {
+                    assertThat(row.get("version")).isEqualTo("2");
+                    assertThat(row.get("script")).isEqualTo("V2__identity.sql");
+                    assertThat(row.get("success")).isEqualTo(true);
+                });
+
+        assertThat(applied)
+                .as("V3 precisa constar no historico do Flyway")
+                .anySatisfy(row -> {
+                    assertThat(row.get("version")).isEqualTo("3");
+                    assertThat(row.get("script")).isEqualTo("V3__configuration.sql");
+                    assertThat(row.get("success")).isEqualTo(true);
+                });
     }
 
     @Test
-    void deveManterOSchemaSemTabelaAlemDasEntreguesAteOM1() {
+    void deveManterOSchemaSemTabelaAlemDasEntreguesAteOM3() {
         List<String> tables = jdbc.queryForList(
                 """
                 select table_name
@@ -49,7 +65,10 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 String.class);
 
         assertThat(tables)
-                .as("ate o M1, a unica tabela de negocio e audit_event; nenhuma tabela financeira existe ainda")
-                .containsExactlyInAnyOrder("flyway_schema_history", "audit_event");
+                .as("ate o M3, nenhuma tabela financeira existe ainda — so auditoria, identidade e configuração")
+                .containsExactlyInAnyOrder(
+                        "flyway_schema_history", "audit_event", "app_user", "user_role", "refresh_token",
+                        "login_throttle", "source", "source_pair", "tolerance_config", "fee_rule",
+                        "settlement_window", "coverage_expectation");
     }
 }

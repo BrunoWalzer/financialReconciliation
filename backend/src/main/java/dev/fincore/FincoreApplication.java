@@ -2,6 +2,7 @@ package dev.fincore;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * Ponto de entrada do monólito modular FINCORE.
@@ -11,6 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * os módulos sem configuração adicional.
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class FincoreApplication {
 
     public static void main(String[] args) {

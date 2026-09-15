@@ -27,6 +27,17 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     // Migrations versionadas: o schema é a especificação de correção (TDS P2).
     implementation("org.flywaydb:flyway-core")
+    // Autenticação (M2): filtro de segurança, @PreAuthorize na aplicação, BCrypt.
+    implementation("org.springframework.boot:spring-boot-starter-security")
+    // Validação de DTO de entrada (login) — primeiro endpoint do projeto a receber corpo.
+    implementation("org.springframework.boot:spring-boot-starter-validation")
+    // Emissão e verificação de JWT (access token, HS256). Não usamos o resource-server do
+    // Spring Security de propósito: ele importa o vocabulário OAuth2/OIDC (emissor externo,
+    // JWK set, descoberta), e aqui o próprio FINCORE emite e verifica com um segredo
+    // simétrico — JJWT é a biblioteca certa para exatamente esse caso, nada mais.
+    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
     runtimeOnly("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
@@ -34,6 +45,7 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
     // Fronteiras arquiteturais verificadas por teste (TDS 4.4).

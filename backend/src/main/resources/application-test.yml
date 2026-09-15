@@ -1,8 +1,19 @@
-# Perfil de teste automatizado. O DataSource vem do contêiner Testcontainers via
+﻿# Perfil de teste automatizado. O DataSource vem do contêiner Testcontainers via
 # @ServiceConnection — nenhuma coordenada de banco é fixada aqui.
 spring:
   flyway:
     enabled: true
+    placeholders:
+      # Fixo e obviamente falso: nunca usado fora da suíte automatizada.
+      bootstrapAdminPassword: test-only-bootstrap-password
+
+fincore:
+  jwt:
+    # Fixo para determinismo: os testes assinam e verificam com o mesmo segredo em toda
+    # a suíte. Nunca reaproveitado fora do perfil test.
+    secret: test-only-jwt-signing-secret-key-32-bytes-minimum
+  cors:
+    allowed-origin: http://localhost:5173
 
 logging:
   level:

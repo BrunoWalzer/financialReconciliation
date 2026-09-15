@@ -7,14 +7,32 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.fincore.shared.correlation.CorrelationId;
+import fincore.testsupport.FailingEndpointController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** O identificador de correlacao atravessa requisicao, resposta e corpo de erro (TDS 26). */
-@WebMvcTest
+/**
+ * O identificador de correlacao atravessa requisicao, resposta e corpo de erro (TDS 26).
+ *
+ * <p>{@code excludeAutoConfiguration} (M2): sem isso, a fatia {@code @WebMvcTest}
+ * auto-configuraria a segurança padrão do Spring Boot (toda rota autenticada), que
+ * bloquearia a requisição antes de chegar ao {@code GlobalErrorHandler} — esta suíte
+ * testa propagação de correlação, não autenticação. {@code addFilters = false} não serve
+ * aqui: ele desligaria também o próprio {@code CorrelationIdFilter}, que é um filtro
+ * comum, não parte da cadeia do Spring Security.
+ *
+ * <p>{@code controllers = FailingEndpointController.class} restringe a fatia a um único
+ * controller arbitrário — sem isso, ela instanciaria todo {@code @RestController} do
+ * projeto, inclusive os que dependem de beans que esta fatia não provê.
+ */
+@WebMvcTest(
+        controllers = FailingEndpointController.class,
+        excludeAutoConfiguration = {SecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class})
 @ActiveProfiles("test")
 class CorrelationIdFilterTest {
 

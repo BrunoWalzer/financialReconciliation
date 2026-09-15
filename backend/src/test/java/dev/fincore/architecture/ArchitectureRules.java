@@ -100,6 +100,31 @@ public final class ArchitectureRules {
     public static final ArchRule AUDIT_ONLY_DEPENDS_ON_SHARED =
             moduleMayOnlyDependOn("audit", "shared");
 
+    /**
+     * {@code configuration.domain}/{@code application}/{@code infrastructure} so dependem
+     * de {@code shared} e {@code audit} (TDS 4.2: as unicas arestas listadas para este
+     * modulo). Em particular, nao dependem de {@code identity} — e por isso que os casos
+     * de uso de configuration recebem o ator (para auditoria) como UUID/String simples,
+     * nunca como {@code CurrentUser}; e nao dependem de {@code divergence} nem
+     * {@code reconciliation} — a garantia de FD-6 ("configuracao nunca encerra
+     * divergencia") vem da ausencia de qualquer caminho de codigo entre os dois, nao de
+     * uma checagem em tempo de execucao.
+     *
+     * <p>{@code configuration.api} fica de fora de propósito: a camada api tem a aresta
+     * {@code api --> identity} liberada pelo grafo (TDS 4.2) — é ela quem resolve
+     * {@code CurrentUser} para email antes de chamar a aplicação (ver
+     * {@code GetCurrentUserUseCase} nos controllers de configuration).
+     */
+    public static final ArchRule CONFIGURATION_CORE_ONLY_DEPENDS_ON_SHARED_AND_AUDIT =
+            noClasses()
+                    .that().resideInAPackage(ROOT + ".configuration..")
+                    .and().resideOutsideOfPackage(ROOT + ".configuration.api..")
+                    .should().dependOnClassesThat(
+                            resideInAPackage(ROOT + "..")
+                                    .and(not(resideInAnyPackage(
+                                            ROOT + ".configuration..", ROOT + ".shared..", ROOT + ".audit.."))))
+                    .as("configuration.domain/application/infrastructure so dependem de shared e audit");
+
     /** Importacao nao sabe o que sera feito com os dados que ela traz. */
     public static final ArchRule INGESTION_DOES_NOT_DEPEND_ON_MATCHING_OR_RECONCILIATION =
             noClasses()
@@ -207,6 +232,7 @@ public final class ArchitectureRules {
                 MATCHING_DOES_NOT_DEPEND_ON_CONFIGURATION,
                 EVIDENCE_ONLY_DEPENDS_ON_SHARED,
                 AUDIT_ONLY_DEPENDS_ON_SHARED,
+                CONFIGURATION_CORE_ONLY_DEPENDS_ON_SHARED_AND_AUDIT,
                 INGESTION_DOES_NOT_DEPEND_ON_MATCHING_OR_RECONCILIATION,
                 ANALYTICS_NEVER_WRITES,
                 MATCHING_DOES_NOT_READ_THE_CLOCK,

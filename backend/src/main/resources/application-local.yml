@@ -1,4 +1,4 @@
-# Perfil de desenvolvimento na máquina do desenvolvedor, contra o PostgreSQL do
+﻿# Perfil de desenvolvimento na máquina do desenvolvedor, contra o PostgreSQL do
 # docker-compose. Os valores padrão só alcançam esse contêiner local; qualquer outro
 # ambiente sobrescreve por variável de ambiente.
 spring:
@@ -8,6 +8,18 @@ spring:
     password: ${FINCORE_DB_PASSWORD:fincore}
     hikari:
       pool-name: fincore-pool
+  flyway:
+    placeholders:
+      # Só alcança o Postgres do docker-compose desta máquina — troque no seu .env.
+      bootstrapAdminPassword: ${FINCORE_BOOTSTRAP_ADMIN_PASSWORD:ChangeMe123!}
+
+fincore:
+  jwt:
+    # 256 bits fixos só para rodar localmente sem configurar nada — nunca reaproveitar
+    # fora desta máquina. dev/produção exigem o valor real via variável de ambiente.
+    secret: ${FINCORE_JWT_SECRET:local-development-secret-key-please-change-32bytes+}
+  cors:
+    allowed-origin: ${FINCORE_CORS_ORIGIN:http://localhost:3000}
 
 logging:
   level:

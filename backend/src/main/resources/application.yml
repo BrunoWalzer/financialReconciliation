@@ -1,4 +1,4 @@
-# Configuração operacional do FINCORE (TDS 30.1).
+﻿# Configuração operacional do FINCORE (TDS 30.1).
 # Regra de negócio parametrizada — tolerância, taxa, janelas — nunca entra aqui:
 # ela mora em tabela, é auditada e é capturada no snapshot da execução.
 spring:
@@ -13,6 +13,11 @@ spring:
     validate-on-migrate: true
     baseline-on-migrate: false
     clean-disabled: true
+    placeholders:
+      # V2__identity.sql usa isto para o hash do administrador semeado (TDS 29.4). Nunca
+      # tem valor aqui — cada perfil fornece o seu (local com padrão de desenvolvimento,
+      # test com um fixo, dev/produção exigem a variável de ambiente sem padrão).
+      bootstrapAdminPassword: ${FINCORE_BOOTSTRAP_ADMIN_PASSWORD}
   jpa:
     # O schema é gerado só pelo Flyway; Hibernate apenas confere que o mapeamento bate
     # com o que a migration criou. Nunca `update` nem `create` — o schema não nasce do
@@ -59,6 +64,16 @@ info:
   fincore:
     # Versão do conjunto de regras de matching (TDS 30.2). Fica em código, não em banco.
     ruleSetVersion: ${FINCORE_RULE_SET_VERSION:1}
+
+fincore:
+  jwt:
+    # Sem padrão: um segredo previsível em produção anula a assinatura (TDS 27).
+    secret: ${FINCORE_JWT_SECRET}
+    access-ttl: ${FINCORE_JWT_ACCESS_TTL:15m}
+    refresh-ttl: ${FINCORE_JWT_REFRESH_TTL:7d}
+  cors:
+    # Origem única, sem padrão: nunca "*" (TDS 21.3).
+    allowed-origin: ${FINCORE_CORS_ORIGIN}
 
 logging:
   # Log estruturado em JSON com o MDC — correlationId, e mais adiante userId e module.

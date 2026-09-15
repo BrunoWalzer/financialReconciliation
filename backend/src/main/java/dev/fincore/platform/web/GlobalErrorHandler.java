@@ -1,7 +1,14 @@
 package dev.fincore.platform.web;
 
+import dev.fincore.configuration.application.FeeRuleAlreadyActiveException;
+import dev.fincore.configuration.application.StaleConfigurationVersionException;
+import dev.fincore.identity.application.InvalidCredentialsException;
+import dev.fincore.identity.application.RefreshTokenInvalidException;
+import dev.fincore.identity.application.RefreshTokenReuseDetectedException;
 import dev.fincore.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.NoSuchElementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -10,6 +17,9 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -49,6 +59,111 @@ public class GlobalErrorHandler extends ResponseEntityExceptionHandler {
         return super.handleExceptionInternal(exception, problem, headers, statusCode, request);
     }
 
+    /**
+     * Falha de {@code @Valid} num corpo de requisição (TDS 20: 400 com {@code errors[]}).
+     * É a mais específica das exceções que {@link ResponseEntityExceptionHandler} já
+     * trata — precisa de override próprio porque {@code errors[]} não existe no caminho
+     * genérico de {@link #handleExceptionInternal}.
+     */
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException exception,
+            HttpHeaders headers,
+            HttpStatusCode statusCode,
+            WebRequest request) {
+
+        List<ValidationError> errors = exception.getBindingResult().getFieldErrors().stream()
+                .map(GlobalErrorHandler::toValidationError)
+                .toList();
+
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.VALIDATION_FAILED, detailFor(ErrorCode.VALIDATION_FAILED), instanceOf(request));
+        problem.setProperty("errors", errors);
+        return super.handleExceptionInternal(exception, problem, headers, statusCode, request);
+    }
+
+    /** Credenciais inválidas em login: mesma resposta para e-mail inexistente e senha errada (Domain §27.4). */
+    @ExceptionHandler(InvalidCredentialsException.class)
+    ResponseEntity<ProblemDetail> handleInvalidCredentials(InvalidCredentialsException exception, HttpServletRequest request) {
+        return unauthenticated(request);
+    }
+
+    /** Refresh token ausente, expirado, ou reuso de um já revogado — resposta idêntica nos três casos. */
+    @ExceptionHandler({RefreshTokenInvalidException.class, RefreshTokenReuseDetectedException.class})
+    ResponseEntity<ProblemDetail> handleInvalidRefreshToken(RuntimeException exception, HttpServletRequest request) {
+        return unauthenticated(request);
+    }
+
+    /** Recurso inexistente resolvido dentro de um caso de uso — não pelo roteamento do MVC. */
+    @ExceptionHandler(NoSuchElementException.class)
+    ResponseEntity<ProblemDetail> handleNotFound(NoSuchElementException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.RESOURCE_NOT_FOUND, detailFor(ErrorCode.RESOURCE_NOT_FOUND), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
+    }
+
+    /** {@code If-Match} não confere — pelo valor que o cliente enviou, ou porque outra transação venceu a corrida. */
+    @ExceptionHandler(StaleConfigurationVersionException.class)
+    ResponseEntity<ProblemDetail> handleStaleVersion(StaleConfigurationVersionException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.CONFIGURATION_VERSION_CONFLICT,
+                detailFor(ErrorCode.CONFIGURATION_VERSION_CONFLICT),
+                request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    /** Já existe regra de taxa ativa para a mesma fonte e meio de pagamento ({@code uq_fee_rule_active_source_payment_method}). */
+    @ExceptionHandler(FeeRuleAlreadyActiveException.class)
+    ResponseEntity<ProblemDetail> handleFeeRuleAlreadyActive(FeeRuleAlreadyActiveException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.FEE_RULE_ALREADY_ACTIVE, detailFor(ErrorCode.FEE_RULE_ALREADY_ACTIVE), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    /**
+     * Invariante de domínio violado (ex.: {@code SettlementWindow} com {@code maxDays} <
+     * {@code minDays}) — validação que {@code @Valid} não alcança porque cruza campos.
+     * Sem isso, a exceção cairia no handler genérico e voltaria como 500 para uma entrada
+     * de cliente perfeitamente identificável como inválida.
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.VALIDATION_FAILED, detailFor(ErrorCode.VALIDATION_FAILED), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+    }
+
+    /**
+     * {@code @PreAuthorize} negado dentro de um caso de uso (TDS 21.2). O comentário de
+     * {@code RestAccessDeniedHandler} presume que {@code ExceptionTranslationFilter}
+     * intercepta esta exceção "nos dois casos" (cadeia HTTP e método), mas isso só vale
+     * quando ela escapa de toda a {@code FilterChain}: uma negação dentro de um caso de
+     * uso é resolvida pelo próprio {@code DispatcherServlet} antes de chegar lá, e caía no
+     * handler genérico como 500 — descoberto pelos primeiros testes deste milestone que
+     * exercitam um endpoint {@code @PreAuthorize} de ponta a ponta via HTTP com papel
+     * errado. Mesmo corpo e status do handler de filtro, para resposta consistente nos
+     * dois casos.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.FORBIDDEN, detailFor(ErrorCode.FORBIDDEN), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    private static ResponseEntity<ProblemDetail> unauthenticated(HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.UNAUTHENTICATED, detailFor(ErrorCode.UNAUTHENTICATED), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(problem);
+    }
+
+    private static ValidationError toValidationError(FieldError fieldError) {
+        return new ValidationError(fieldError.getField(), fieldError.getDefaultMessage());
+    }
+
+    private record ValidationError(String field, String message) {
+    }
+
     /** Qualquer coisa não prevista. O cliente recebe 500 e o correlationId; o resto vai para o log. */
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> handleUnexpected(Exception exception, HttpServletRequest request) {
@@ -67,6 +182,13 @@ public class GlobalErrorHandler extends ResponseEntityExceptionHandler {
             case METHOD_NOT_ALLOWED -> "O método HTTP não é permitido para este recurso.";
             case UNSUPPORTED_MEDIA_TYPE -> "O tipo de conteúdo enviado não é suportado.";
             case VALIDATION_FAILED -> "A requisição não pôde ser interpretada.";
+            // Deliberadamente genérico: não distingue token ausente, expirado, malformado,
+            // credencial errada ou conta bloqueada (Domain §27.4).
+            case UNAUTHENTICATED -> "Não foi possível autenticar a requisição.";
+            case FORBIDDEN -> "Você não tem permissão para executar esta operação.";
+            case CONFIGURATION_VERSION_CONFLICT ->
+                    "A configuração foi alterada por outra requisição. Releia o recurso e tente de novo.";
+            case FEE_RULE_ALREADY_ACTIVE -> "Já existe uma regra de taxa ativa para esta fonte e meio de pagamento.";
             case INTERNAL_ERROR -> "Ocorreu uma falha inesperada. Informe o correlationId ao suporte.";
         };
     }
