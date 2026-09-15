@@ -1,0 +1,25 @@
+# Build
+build/
+bin/
+out/
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Ambiente — nunca versionar credencial
+.env
+
+# Documentação interna de planejamento (specs de domínio, técnica, plano de
+# implementação) — fica local, não sobe para o repositório remoto.
+docs/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

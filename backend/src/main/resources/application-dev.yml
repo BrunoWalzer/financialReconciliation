@@ -1,0 +1,9 @@
+# Ambiente compartilhado. Sem valor padrão: faltando variável, a aplicação não sobe —
+# que é melhor do que subir apontando para o lugar errado.
+spring:
+  datasource:
+    url: ${FINCORE_DB_URL}
+    username: ${FINCORE_DB_USERNAME}
+    password: ${FINCORE_DB_PASSWORD}
+    hikari:
+      pool-name: fincore-pool

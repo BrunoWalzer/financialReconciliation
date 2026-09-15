@@ -1,0 +1,9 @@
+# Perfil de teste automatizado. O DataSource vem do contêiner Testcontainers via
+# @ServiceConnection — nenhuma coordenada de banco é fixada aqui.
+spring:
+  flyway:
+    enabled: true
+
+logging:
+  level:
+    dev.fincore: DEBUG

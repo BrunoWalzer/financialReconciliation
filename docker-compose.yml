@@ -1,0 +1,28 @@
+# Infraestrutura de desenvolvimento do FINCORE.
+#
+# Apenas PostgreSQL. RabbitMQ entra no M8, quando existir trabalho assincrono para
+# enfileirar; Redis nao entra em milestone nenhum (TDS 18).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fincore-postgres
+    environment:
+      POSTGRES_DB: ${FINCORE_DB_NAME:-fincore}
+      POSTGRES_USER: ${FINCORE_DB_USERNAME:-fincore}
+      POSTGRES_PASSWORD: ${FINCORE_DB_PASSWORD:-fincore}
+    ports:
+      - "${FINCORE_DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Quem depender deste servico espera o banco aceitar conexao, nao o contêiner subir.
+      test: ["CMD-SHELL", "pg_isready -U ${FINCORE_DB_USERNAME:-fincore} -d ${FINCORE_DB_NAME:-fincore}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    name: fincore-pgdata

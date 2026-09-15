@@ -1,0 +1,17 @@
+-- V0 — Extensões de banco. Milestone M0.
+--
+-- Nenhuma extensão é criada, e isso é uma decisão, não um esquecimento.
+--
+-- O plano previa `pgcrypto` ou `uuid-ossp` "se necessário para UUID v7". Não é:
+--   * os identificadores do FINCORE são UUID v7 (TDS 7), e UUID v7 é gerado na
+--     aplicação — o PostgreSQL 16 não tem função nativa para essa versão, e nenhuma
+--     das duas extensões a oferece;
+--   * `gen_random_uuid()` (v4) já vem no núcleo do PostgreSQL desde a versão 13,
+--     dispensando `pgcrypto` para qualquer default de identificador no banco;
+--   * os hashes do projeto — `content_sha256` do lote (TDS 7.4) e `token_hash` do
+--     refresh token (TDS 7.1) — são calculados na aplicação, que é onde está o valor
+--     em claro; calculá-los em SQL faria o segredo passar pelo log de statements.
+--
+-- Esta migration existe para fixar V0 no histórico do Flyway e provar, desde o M0, que
+-- o pipeline de migration está operante. Quando um milestone precisar de uma extensão,
+-- ela entra na migration daquele milestone, com a justificativa ao lado.

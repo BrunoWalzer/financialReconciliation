@@ -1,0 +1,14 @@
+# Perfil de desenvolvimento na máquina do desenvolvedor, contra o PostgreSQL do
+# docker-compose. Os valores padrão só alcançam esse contêiner local; qualquer outro
+# ambiente sobrescreve por variável de ambiente.
+spring:
+  datasource:
+    url: ${FINCORE_DB_URL:jdbc:postgresql://localhost:5432/fincore}
+    username: ${FINCORE_DB_USERNAME:fincore}
+    password: ${FINCORE_DB_PASSWORD:fincore}
+    hikari:
+      pool-name: fincore-pool
+
+logging:
+  level:
+    dev.fincore: DEBUG
