@@ -7,6 +7,7 @@ import dev.fincore.evidence.domain.FinancialRecord;
 import dev.fincore.evidence.infrastructure.FinancialRecordRepository;
 import dev.fincore.ingestion.domain.ImportBatch;
 import dev.fincore.ingestion.domain.ImportStatus;
+import dev.fincore.ingestion.infrastructure.ImportBatchRepository;
 import dev.fincore.shared.identifier.Uuid7;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -31,6 +32,12 @@ class ImportFileUseCaseIntegrityScanIntegrationTest extends AbstractIntegrationT
 
     @Autowired
     private ImportFileUseCase importFileUseCase;
+
+    @Autowired
+    private ProcessImportBatchUseCase processImportBatchUseCase;
+
+    @Autowired
+    private ImportBatchRepository importBatchRepository;
 
     @Autowired
     private FinancialRecordRepository financialRecordRepository;
@@ -114,6 +121,8 @@ class ImportFileUseCaseIntegrityScanIntegrationTest extends AbstractIntegrationT
         ImportFileCommand command = new ImportFileCommand(
                 "ACQUIRER_SETTLEMENT", "arquivo-" + Uuid7.generate() + ".csv",
                 content.getBytes(StandardCharsets.UTF_8), referenceDate, null, null);
-        return importFileUseCase.execute(command, Uuid7.generate(), "analista@fincore.dev");
+        ImportBatch received = importFileUseCase.execute(command, Uuid7.generate(), "analista@fincore.dev");
+        processImportBatchUseCase.execute(received.id());
+        return importBatchRepository.findById(received.id()).orElseThrow();
     }
 }

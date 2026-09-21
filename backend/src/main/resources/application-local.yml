@@ -12,6 +12,12 @@ spring:
     placeholders:
       # Só alcança o Postgres do docker-compose desta máquina — troque no seu .env.
       bootstrapAdminPassword: ${FINCORE_BOOTSTRAP_ADMIN_PASSWORD:ChangeMe123!}
+  rabbitmq:
+    # Só alcança o RabbitMQ do docker-compose desta máquina — troque no seu .env.
+    host: ${FINCORE_RABBIT_HOST:localhost}
+    port: ${FINCORE_RABBIT_PORT:5672}
+    username: ${FINCORE_RABBIT_USERNAME:guest}
+    password: ${FINCORE_RABBIT_PASSWORD:guest}
 
 fincore:
   jwt:

@@ -33,9 +33,24 @@ class ImportBatchTest {
     }
 
     @Test
-    void naoDevePermitirIniciarProcessamentoDuasVezes() {
+    void devePermitirReentrarEmProcessingParaORecuperadoPeloSweep() {
+        // M8, TDS 17.5: um worker recuperado pelo sweep reentra num lote que já estava em
+        // PROCESSING quando o worker anterior morreu — não é uma transição inválida.
         ImportBatch batch = newBatch();
         batch.startProcessing(NOW);
+        Instant later = NOW.plusSeconds(60);
+
+        batch.startProcessing(later);
+
+        assertThat(batch.status()).isEqualTo(ImportStatus.PROCESSING);
+        assertThat(batch.startedAt()).isEqualTo(later);
+    }
+
+    @Test
+    void naoDevePermitirIniciarProcessamentoAPartirDeUmEstadoTerminal() {
+        ImportBatch batch = newBatch();
+        batch.startProcessing(NOW);
+        batch.complete(1, 1, 0, 0, NOW);
 
         assertThatThrownBy(() -> batch.startProcessing(NOW)).isInstanceOf(IllegalStateException.class);
     }
@@ -112,6 +127,29 @@ class ImportBatchTest {
         batch.complete(1, 1, 0, 0, NOW);
 
         assertThatThrownBy(() -> batch.complete(1, 1, 0, 0, NOW)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void deveRetentarAPartirDeFailedVoltandoParaReceived() {
+        ImportBatch batch = newBatch();
+        batch.startProcessing(NOW);
+        batch.fail("falha de leitura: disco indisponível", NOW);
+
+        batch.retryFromFailure();
+
+        assertThat(batch.status()).isEqualTo(ImportStatus.RECEIVED);
+        assertThat(batch.rejectionReason()).isNull();
+        assertThat(batch.startedAt()).isNull();
+        assertThat(batch.finishedAt()).isNull();
+    }
+
+    @Test
+    void naoDevePermitirRetentarAPartirDeUmEstadoQueNaoEhFailed() {
+        ImportBatch batch = newBatch();
+        batch.startProcessing(NOW);
+        batch.complete(1, 1, 0, 0, NOW);
+
+        assertThatThrownBy(batch::retryFromFailure).isInstanceOf(IllegalStateException.class);
     }
 
     @Test

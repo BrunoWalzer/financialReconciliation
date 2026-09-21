@@ -41,6 +41,28 @@ spring:
       # resolvedor de multipart do Spring rejeita antes de o corpo ser materializado.
       max-file-size: ${FINCORE_MAX_UPLOAD_BYTES:52428800}
       max-request-size: ${FINCORE_MAX_UPLOAD_BYTES:52428800}
+  rabbitmq:
+    # Transporte/coordenação assíncrona (M8, TDS 17) — nunca fonte de verdade financeira.
+    host: ${FINCORE_RABBIT_HOST:localhost}
+    port: ${FINCORE_RABBIT_PORT:5672}
+    username: ${FINCORE_RABBIT_USERNAME:guest}
+    password: ${FINCORE_RABBIT_PASSWORD:guest}
+    listener:
+      simple:
+        # TDS 17.3: trabalho longo, distribuição justa importa mais que throughput.
+        # acknowledge-mode fica no padrão (AUTO): o container só confirma a mensagem
+        # depois que o listener retorna sem lançar — ou seja, depois da transação final
+        # (via ImportBatchTransactionalSteps), que é exatamente "ack manual após a
+        # transação final" sem precisar manipular o Channel à mão.
+        prefetch: 1
+        concurrency: 2
+        max-concurrency: 4
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000
+          multiplier: 4.0
+          max-interval: 16000
 
 server:
   port: ${FINCORE_SERVER_PORT:8080}
@@ -87,6 +109,24 @@ fincore:
     max-upload-bytes: ${FINCORE_MAX_UPLOAD_BYTES:52428800}
     max-upload-lines: ${FINCORE_MAX_UPLOAD_LINES:500000}
     batch-size: 1000
+    # Um batch travado (RECEIVED/PROCESSING além deste prazo) é recuperado pelo sweep em
+    # vez de outbox transacional (TDS 17.5).
+    stuck-threshold: 15m
+    # TDS 17.5 descreve um único job diário por par de fontes que também enfileira o sweep
+    # de cobertura/envelhecimento (M15) e expira atribuições (M14) — nenhum dos dois existe
+    # ainda. Só a recuperação de trabalhos travados é responsabilidade do M8, e travamento é
+    # sobre o lote (não sobre um par de fontes), então este job roda sozinho, mais
+    # frequente que diário — ver relatório do M8, Decisões.
+    sweep-cron: ${FINCORE_SWEEP_CRON:0 */5 * * * *}
+  messaging:
+    # Topologia fixa do TDS 17.2 — nomes externalizados, nunca hardcoded no código
+    # (Implementation Plan M8, seção 23), mas os valores em si não são regra de negócio.
+    commands-exchange: fincore.commands
+    dead-letter-exchange: fincore.dlx
+    import-process-queue: fincore.import.process
+    import-process-dead-letter-queue: fincore.import.process.dlq
+    reconciliation-run-queue: fincore.reconciliation.run
+    reconciliation-run-dead-letter-queue: fincore.reconciliation.run.dlq
 
 logging:
   # Log estruturado em JSON com o MDC — correlationId, e mais adiante userId e module.

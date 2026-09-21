@@ -155,7 +155,13 @@ public final class ArchitectureRules {
     /**
      * {@code ingestion.domain}/{@code application}/{@code parser}/{@code infrastructure}
      * so dependem de {@code shared}, {@code evidence}, {@code configuration} e
-     * {@code audit} — as arestas que a TDS 4.2 lista para {@code ingestion}.
+     * {@code audit} — as arestas que a TDS 4.2 lista para {@code ingestion}. A topologia e
+     * o publisher RabbitMQ do M8 usam {@code shared.messaging} (não {@code platform}):
+     * {@code platform} já depende de {@code ingestion} via {@code GlobalErrorHandler}
+     * traduzindo suas exceções, então uma aresta {@code ingestion --> platform} criaria um
+     * ciclo de módulos — descoberto pelo ArchUnit ao implementar o M8, corrigido movendo as
+     * constantes de mensageria (sem lógica de framework) para {@code shared}, mesmo
+     * raciocínio de {@code shared.correlation.CorrelationId}.
      *
      * <p>{@code ingestion.api} fica de fora de proposito, mesmo padrao de
      * {@code configuration.api}/{@code evidence.api}: resolve {@code CurrentUser} via

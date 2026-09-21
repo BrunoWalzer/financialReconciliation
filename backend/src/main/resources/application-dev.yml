@@ -7,3 +7,8 @@ spring:
     password: ${FINCORE_DB_PASSWORD}
     hikari:
       pool-name: fincore-pool
+  rabbitmq:
+    host: ${FINCORE_RABBIT_HOST}
+    port: ${FINCORE_RABBIT_PORT}
+    username: ${FINCORE_RABBIT_USERNAME}
+    password: ${FINCORE_RABBIT_PASSWORD}

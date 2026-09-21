@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,24 +37,50 @@ class ImportBatchTransactionalSteps {
     private final BulkInsertFinancialRecordsUseCase bulkInsertFinancialRecordsUseCase;
     private final RunIntegrityScanUseCase runIntegrityScanUseCase;
     private final AuditService auditService;
+    private final ApplicationEventPublisher eventPublisher;
 
     ImportBatchTransactionalSteps(
             ImportBatchRepository importBatchRepository,
             RejectedRecordRepository rejectedRecordRepository,
             BulkInsertFinancialRecordsUseCase bulkInsertFinancialRecordsUseCase,
             RunIntegrityScanUseCase runIntegrityScanUseCase,
-            AuditService auditService) {
+            AuditService auditService,
+            ApplicationEventPublisher eventPublisher) {
         this.importBatchRepository = importBatchRepository;
         this.rejectedRecordRepository = rejectedRecordRepository;
         this.bulkInsertFinancialRecordsUseCase = bulkInsertFinancialRecordsUseCase;
         this.runIntegrityScanUseCase = runIntegrityScanUseCase;
         this.auditService = auditService;
+        this.eventPublisher = eventPublisher;
     }
 
+    /**
+     * Grava o lote em {@code RECEIVED} e publica {@link ImportBatchReceivedEvent}
+     * in-process — o {@code @TransactionalEventListener(phase = AFTER_COMMIT)} em
+     * {@code ImportBatchEventListener} (ingestion.infrastructure) é quem de fato manda a
+     * mensagem para o RabbitMQ, só depois que esta transação commitar (Implementation Plan
+     * M8: publicação nunca dentro de transação).
+     */
     @Transactional
     ImportBatch createReceived(ImportBatch batch, ActorRef actor) {
         ImportBatch saved = importBatchRepository.save(batch);
         auditService.record(AuditEventRequest.of(actor, "IMPORT_BATCH_CREATED", "ImportBatch", saved.id()));
+        eventPublisher.publishEvent(new ImportBatchReceivedEvent(saved.id(), saved.correlationId()));
+        return saved;
+    }
+
+    /**
+     * {@code POST /imports/{id}/retry} (Implementation Plan M8) — só a partir de
+     * {@code FAILED}; publica um novo {@link ImportBatchReceivedEvent} para reenfileirar,
+     * mesmo mecanismo de {@link #createReceived}.
+     */
+    @Transactional
+    ImportBatch retryFromFailure(UUID batchId, ActorRef actor) {
+        ImportBatch batch = requireBatch(batchId);
+        batch.retryFromFailure();
+        ImportBatch saved = importBatchRepository.save(batch);
+        auditService.record(AuditEventRequest.of(actor, "IMPORT_BATCH_RETRY_REQUESTED", "ImportBatch", saved.id()));
+        eventPublisher.publishEvent(new ImportBatchReceivedEvent(saved.id(), saved.correlationId()));
         return saved;
     }
 

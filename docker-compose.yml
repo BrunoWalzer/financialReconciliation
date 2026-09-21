@@ -1,7 +1,7 @@
 # Infraestrutura de desenvolvimento do FINCORE.
 #
-# Apenas PostgreSQL. RabbitMQ entra no M8, quando existir trabalho assincrono para
-# enfileirar; Redis nao entra em milestone nenhum (TDS 18).
+# PostgreSQL e RabbitMQ (M8, TDS 17 — transporte/coordenacao assincrona, nunca fonte de
+# verdade). Redis nao entra em milestone nenhum (TDS 18).
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +17,23 @@ services:
     healthcheck:
       # Quem depender deste servico espera o banco aceitar conexao, nao o contêiner subir.
       test: ["CMD-SHELL", "pg_isready -U ${FINCORE_DB_USERNAME:-fincore} -d ${FINCORE_DB_NAME:-fincore}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: fincore-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${FINCORE_RABBIT_USERNAME:-guest}
+      RABBITMQ_DEFAULT_PASS: ${FINCORE_RABBIT_PASSWORD:-guest}
+    ports:
+      - "${FINCORE_RABBIT_PORT:-5672}:5672"
+      - "15672:15672" # console de administracao, so para inspecao manual local.
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10

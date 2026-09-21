@@ -41,6 +41,9 @@ public enum ErrorCode {
     /** Upload acima do limite de tamanho aprovado (M5, TDS 9.1). */
     PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "Arquivo excede o limite permitido"),
 
+    /** {@code POST /imports/{id}/retry} fora de {@code FAILED} (M8, Implementation Plan). */
+    IMPORT_BATCH_NOT_RETRYABLE(HttpStatus.CONFLICT, "Importação não está em estado retentável"),
+
     /** Falha não prevista. A resposta carrega apenas o correlationId. */
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno");
 

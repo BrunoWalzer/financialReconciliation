@@ -6,6 +6,7 @@ import dev.fincore.identity.application.InvalidCredentialsException;
 import dev.fincore.identity.application.RefreshTokenInvalidException;
 import dev.fincore.identity.application.RefreshTokenReuseDetectedException;
 import dev.fincore.ingestion.application.DuplicateFileException;
+import dev.fincore.ingestion.application.ImportBatchNotRetryableException;
 import dev.fincore.ingestion.application.UploadTooLargeException;
 import dev.fincore.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
@@ -182,6 +183,15 @@ public class GlobalErrorHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(problem);
     }
 
+    /** {@code POST /imports/{id}/retry} fora de {@code FAILED} (Implementation Plan M8). */
+    @ExceptionHandler(ImportBatchNotRetryableException.class)
+    ResponseEntity<ProblemDetail> handleImportBatchNotRetryable(
+            ImportBatchNotRetryableException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.IMPORT_BATCH_NOT_RETRYABLE, detailFor(ErrorCode.IMPORT_BATCH_NOT_RETRYABLE), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
     private static ResponseEntity<ProblemDetail> unauthenticated(HttpServletRequest request) {
         ProblemDetail problem = ProblemDetailFactory.create(
                 ErrorCode.UNAUTHENTICATED, detailFor(ErrorCode.UNAUTHENTICATED), request.getRequestURI());
@@ -222,6 +232,7 @@ public class GlobalErrorHandler extends ResponseEntityExceptionHandler {
             case FEE_RULE_ALREADY_ACTIVE -> "Já existe uma regra de taxa ativa para esta fonte e meio de pagamento.";
             case DUPLICATE_FILE -> "Este arquivo, para esta fonte e data de referência, já foi importado.";
             case PAYLOAD_TOO_LARGE -> "O arquivo excede o tamanho máximo permitido para upload.";
+            case IMPORT_BATCH_NOT_RETRYABLE -> "Esta importação não está em FAILED — só é possível reprocessar a partir desse estado.";
             case INTERNAL_ERROR -> "Ocorreu uma falha inesperada. Informe o correlationId ao suporte.";
         };
     }

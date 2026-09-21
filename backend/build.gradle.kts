@@ -31,6 +31,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     // Validação de DTO de entrada (login) — primeiro endpoint do projeto a receber corpo.
     implementation("org.springframework.boot:spring-boot-starter-validation")
+    // Processamento assíncrono (M8, TDS 17): RabbitMQ como transporte/coordenação —
+    // PostgreSQL continua sendo a fonte de verdade, nunca o broker.
+    implementation("org.springframework.boot:spring-boot-starter-amqp")
     // Emissão e verificação de JWT (access token, HS256). Não usamos o resource-server do
     // Spring Security de propósito: ele importa o vocabulário OAuth2/OIDC (emissor externo,
     // JWK set, descoberta), e aqui o próprio FINCORE emite e verifica com um segredo
@@ -48,6 +51,11 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
+    // Só o teste dedicado de M8 sobe um broker real; os demais usam publisher falso (TDS 17.3).
+    testImplementation("org.testcontainers:rabbitmq")
+    // Espera assíncrona determinística (poll com timeout) só para esse mesmo teste — o
+    // worker real roda em thread própria do container do listener, não no thread do teste.
+    testImplementation("org.awaitility:awaitility:4.2.2")
     // Fronteiras arquiteturais verificadas por teste (TDS 4.4).
     testImplementation("com.tngtech.archunit:archunit:1.5.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

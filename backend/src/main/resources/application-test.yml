@@ -6,6 +6,12 @@ spring:
     placeholders:
       # Fixo e obviamente falso: nunca usado fora da suíte automatizada.
       bootstrapAdminPassword: test-only-bootstrap-password
+  autoconfigure:
+    # A maioria dos testes usa publisher falso (TDS 17.3, "os demais usam publisher
+    # falso") — sem isso, toda a suíte tentaria abrir conexão com um broker real em
+    # localhost:5672 ao subir o contexto. O único teste com RabbitMQ real
+    # (ImportJobRabbitMqIntegrationTest) limpa esta exclusão via @SpringBootTest(properties=...).
+    exclude: org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
 
 fincore:
   jwt:

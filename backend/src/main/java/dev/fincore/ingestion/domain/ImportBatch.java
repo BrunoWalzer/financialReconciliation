@@ -135,8 +135,14 @@ public class ImportBatch {
         this.status = ImportStatus.RECEIVED;
     }
 
+    /**
+     * Também aceita {@code PROCESSING} como origem (Implementation Plan M8): um worker
+     * recuperado pelo sweep de trabalhos travados (TDS 17.5) reentra num lote que já estava
+     * em {@code PROCESSING} quando o worker anterior morreu — reprocessar do zero é seguro
+     * porque {@code ON CONFLICT DO NOTHING} torna a reingestão inofensiva (TDS 9.5).
+     */
     public void startProcessing(Instant now) {
-        requireStatus(ImportStatus.RECEIVED);
+        requireStatus(ImportStatus.RECEIVED, ImportStatus.PROCESSING);
         this.status = ImportStatus.PROCESSING;
         this.startedAt = now;
     }
@@ -180,6 +186,20 @@ public class ImportBatch {
         this.status = ImportStatus.FAILED;
         this.rejectionReason = reason;
         this.finishedAt = now;
+    }
+
+    /**
+     * {@code POST /imports/{id}/retry} (Implementation Plan M8) — só a partir de
+     * {@code FAILED}. Reprocessa o arquivo original do zero: não há rollback de importação
+     * (Domain §9.3), então os {@code FinancialRecord} já persistidos em lotes anteriores
+     * permanecem e {@code ON CONFLICT DO NOTHING} torna a reingestão inofensiva (TDS 9.5).
+     */
+    public void retryFromFailure() {
+        requireStatus(ImportStatus.FAILED);
+        this.status = ImportStatus.RECEIVED;
+        this.rejectionReason = null;
+        this.startedAt = null;
+        this.finishedAt = null;
     }
 
     private void requireStatus(ImportStatus... allowed) {

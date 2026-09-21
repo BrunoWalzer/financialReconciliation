@@ -10,6 +10,7 @@ import dev.fincore.ingestion.domain.ImportBatch;
 import dev.fincore.ingestion.domain.ImportStatus;
 import dev.fincore.ingestion.domain.RejectedRecord;
 import dev.fincore.ingestion.domain.RejectionReasonCode;
+import dev.fincore.ingestion.infrastructure.ImportBatchRepository;
 import dev.fincore.ingestion.infrastructure.RejectedRecordRepository;
 import dev.fincore.shared.identifier.Uuid7;
 import java.nio.charset.StandardCharsets;
@@ -45,6 +46,12 @@ class ImportFileUseCaseIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private ImportFileUseCase importFileUseCase;
+
+    @Autowired
+    private ProcessImportBatchUseCase processImportBatchUseCase;
+
+    @Autowired
+    private ImportBatchRepository importBatchRepository;
 
     @Autowired
     private FinancialRecordRepository financialRecordRepository;
@@ -332,10 +339,19 @@ class ImportFileUseCaseIntegrationTest extends AbstractIntegrationTest {
         }
     }
 
+    /**
+     * A partir do M8, {@link ImportFileUseCase#execute} só cria o lote em {@code RECEIVED}
+     * e publica a mensagem (via publisher falso, TDS 17.3) — quem de fato processa é o
+     * worker. Este helper simula essa segunda etapa de forma síncrona, no mesmo thread, para
+     * manter os testes de comportamento de parsing/persistência do M5/M7 verificando o
+     * resultado final, sem precisar de um broker real.
+     */
     private ImportBatch execute(String sourceCode, String content, LocalDate referenceDate) {
         ImportFileCommand command = new ImportFileCommand(
                 sourceCode, "arquivo-" + Uuid7.generate() + ".csv",
                 content.getBytes(StandardCharsets.UTF_8), referenceDate, null, null);
-        return importFileUseCase.execute(command, Uuid7.generate(), "analista@fincore.dev");
+        ImportBatch received = importFileUseCase.execute(command, Uuid7.generate(), "analista@fincore.dev");
+        processImportBatchUseCase.execute(received.id());
+        return importBatchRepository.findById(received.id()).orElseThrow();
     }
 }

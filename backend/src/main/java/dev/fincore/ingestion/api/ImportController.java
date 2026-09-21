@@ -11,9 +11,11 @@ import dev.fincore.ingestion.application.ImportFileCommand;
 import dev.fincore.ingestion.application.ImportFileUseCase;
 import dev.fincore.ingestion.application.ListImportBatchesUseCase;
 import dev.fincore.ingestion.application.ListRejectedRecordsUseCase;
+import dev.fincore.ingestion.application.RetryImportUseCase;
 import dev.fincore.ingestion.domain.ImportBatch;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -32,12 +34,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.UriComponentsBuilder;
 
 /**
- * {@code POST /imports} · {@code GET /imports} · {@code GET /imports/{id}} ·
- * {@code GET /imports/{id}/rejected-records} · {@code GET /imports/{id}/file} (TDS 20.2).
- * Upload síncrono neste milestone: a resposta já traz o resultado completo, nunca
- * {@code 202} (isso é M8, com RabbitMQ).
+ * {@code POST /imports} · {@code POST /imports/{id}/retry} · {@code GET /imports} ·
+ * {@code GET /imports/{id}} · {@code GET /imports/{id}/rejected-records} ·
+ * {@code GET /imports/{id}/file} (TDS 20.2). Upload assíncrono a partir do M8: a resposta
+ * devolve {@code 202} com o lote ainda em {@code RECEIVED} e {@code Location} apontando
+ * para {@code GET /imports/{id}} — o cliente faz polling desse endpoint para acompanhar o
+ * processamento (sem WebSocket no MVP, TDS 17.4).
  */
 @RestController
 @RequestMapping("/imports")
@@ -47,6 +52,7 @@ public class ImportController {
     private static final int MAX_SIZE = 100;
 
     private final ImportFileUseCase importFileUseCase;
+    private final RetryImportUseCase retryImportUseCase;
     private final GetImportBatchUseCase getImportBatchUseCase;
     private final ListImportBatchesUseCase listImportBatchesUseCase;
     private final ListRejectedRecordsUseCase listRejectedRecordsUseCase;
@@ -56,6 +62,7 @@ public class ImportController {
 
     public ImportController(
             ImportFileUseCase importFileUseCase,
+            RetryImportUseCase retryImportUseCase,
             GetImportBatchUseCase getImportBatchUseCase,
             ListImportBatchesUseCase listImportBatchesUseCase,
             ListRejectedRecordsUseCase listRejectedRecordsUseCase,
@@ -63,6 +70,7 @@ public class ImportController {
             GetCurrentUserUseCase getCurrentUserUseCase,
             GetSourceUseCase getSourceUseCase) {
         this.importFileUseCase = importFileUseCase;
+        this.retryImportUseCase = retryImportUseCase;
         this.getImportBatchUseCase = getImportBatchUseCase;
         this.listImportBatchesUseCase = listImportBatchesUseCase;
         this.listRejectedRecordsUseCase = listRejectedRecordsUseCase;
@@ -78,7 +86,8 @@ public class ImportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate referenceDate,
             @RequestParam(required = false) UUID reimportOfId,
             @RequestParam(required = false) String reimportReason,
-            @AuthenticationPrincipal CurrentUser currentUser) {
+            @AuthenticationPrincipal CurrentUser currentUser,
+            UriComponentsBuilder uriBuilder) {
 
         if (file.isEmpty() && file.getOriginalFilename() == null) {
             throw new IllegalArgumentException("file é obrigatório");
@@ -93,7 +102,17 @@ public class ImportController {
                 sourceCode, originalFilename, readBytes(file), referenceDate, reimportOfId, reimportReason);
 
         ImportBatch batch = importFileUseCase.execute(command, actor.id(), actor.email());
-        return ResponseEntity.ok(toResponse(batch));
+        URI location = uriBuilder.replacePath("/imports/{id}").buildAndExpand(batch.id()).toUri();
+        return ResponseEntity.accepted().location(location).body(toResponse(batch));
+    }
+
+    @PostMapping("/{id}/retry")
+    public ResponseEntity<ImportBatchResponse> retry(
+            @PathVariable UUID id, @AuthenticationPrincipal CurrentUser currentUser, UriComponentsBuilder uriBuilder) {
+        AppUser actor = getCurrentUserUseCase.execute(currentUser);
+        ImportBatch batch = retryImportUseCase.execute(id, actor.id(), actor.email());
+        URI location = uriBuilder.replacePath("/imports/{id}").buildAndExpand(batch.id()).toUri();
+        return ResponseEntity.accepted().location(location).body(toResponse(batch));
     }
 
     @GetMapping
