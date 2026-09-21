@@ -35,6 +35,12 @@ spring:
     resources:
       # Sem recursos estáticos: rota desconhecida vira 404 RFC 9457, não uma busca em disco.
       add-mappings: false
+  servlet:
+    multipart:
+      # Mesmo limite de negócio de fincore.ingestion.max-upload-bytes (TDS 9.1) — o
+      # resolvedor de multipart do Spring rejeita antes de o corpo ser materializado.
+      max-file-size: ${FINCORE_MAX_UPLOAD_BYTES:52428800}
+      max-request-size: ${FINCORE_MAX_UPLOAD_BYTES:52428800}
 
 server:
   port: ${FINCORE_SERVER_PORT:8080}
@@ -74,6 +80,13 @@ fincore:
   cors:
     # Origem única, sem padrão: nunca "*" (TDS 21.3).
     allowed-origin: ${FINCORE_CORS_ORIGIN}
+  ingestion:
+    # Limites aprovados (Implementation Plan FD-10 OD-5): 50 MB, 500 mil linhas, lote de
+    # 1000 linhas por transação. "Calibrar no M18" não é licença para mudar aqui.
+    file-storage-path: ${FINCORE_FILE_STORAGE_PATH:./data/imports}
+    max-upload-bytes: ${FINCORE_MAX_UPLOAD_BYTES:52428800}
+    max-upload-lines: ${FINCORE_MAX_UPLOAD_LINES:500000}
+    batch-size: 1000
 
 logging:
   # Log estruturado em JSON com o MDC — correlationId, e mais adiante userId e module.

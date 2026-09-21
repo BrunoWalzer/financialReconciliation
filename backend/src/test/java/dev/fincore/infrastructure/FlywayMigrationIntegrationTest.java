@@ -51,10 +51,34 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                     assertThat(row.get("script")).isEqualTo("V3__configuration.sql");
                     assertThat(row.get("success")).isEqualTo(true);
                 });
+
+        assertThat(applied)
+                .as("V4 precisa constar no historico do Flyway")
+                .anySatisfy(row -> {
+                    assertThat(row.get("version")).isEqualTo("4");
+                    assertThat(row.get("script")).isEqualTo("V4__evidence.sql");
+                    assertThat(row.get("success")).isEqualTo(true);
+                });
+
+        assertThat(applied)
+                .as("V5 precisa constar no historico do Flyway")
+                .anySatisfy(row -> {
+                    assertThat(row.get("version")).isEqualTo("5");
+                    assertThat(row.get("script")).isEqualTo("V5__ingestion.sql");
+                    assertThat(row.get("success")).isEqualTo(true);
+                });
+
+        assertThat(applied)
+                .as("V6 precisa constar no historico do Flyway")
+                .anySatisfy(row -> {
+                    assertThat(row.get("version")).isEqualTo("6");
+                    assertThat(row.get("script")).isEqualTo("V6__evidence_fk_import.sql");
+                    assertThat(row.get("success")).isEqualTo(true);
+                });
     }
 
     @Test
-    void deveManterOSchemaSemTabelaAlemDasEntreguesAteOM3() {
+    void deveManterOSchemaSemTabelaAlemDasEntreguesAteOM5() {
         List<String> tables = jdbc.queryForList(
                 """
                 select table_name
@@ -65,10 +89,11 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 String.class);
 
         assertThat(tables)
-                .as("ate o M3, nenhuma tabela financeira existe ainda — so auditoria, identidade e configuração")
+                .as("ate o M5, nenhuma tabela de matching/reconciliação existe ainda")
                 .containsExactlyInAnyOrder(
                         "flyway_schema_history", "audit_event", "app_user", "user_role", "refresh_token",
                         "login_throttle", "source", "source_pair", "tolerance_config", "fee_rule",
-                        "settlement_window", "coverage_expectation");
+                        "settlement_window", "coverage_expectation", "financial_record", "record_integrity_flag",
+                        "record_annotation", "import_batch", "rejected_record");
     }
 }

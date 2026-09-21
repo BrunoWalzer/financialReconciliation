@@ -14,6 +14,9 @@ fincore:
     secret: test-only-jwt-signing-secret-key-32-bytes-minimum
   cors:
     allowed-origin: http://localhost:5173
+  ingestion:
+    # Diretório efêmero, fora do caminho usado pelo perfil local/dev.
+    file-storage-path: ./build/test-data/imports
 
 logging:
   level:

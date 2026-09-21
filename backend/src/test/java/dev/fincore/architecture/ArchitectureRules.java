@@ -92,9 +92,28 @@ public final class ArchitectureRules {
                     .should().dependOnClassesThat().resideInAPackage(ROOT + ".configuration..")
                     .because("o motor recebe o snapshot como parametro (TDS P4)");
 
-    /** {@code evidence} e a base: so pode depender de {@code shared}. */
-    public static final ArchRule EVIDENCE_ONLY_DEPENDS_ON_SHARED =
-            moduleMayOnlyDependOn("evidence", "shared");
+    /**
+     * {@code evidence.domain}/{@code application}/{@code infrastructure} so dependem de
+     * {@code shared} e {@code audit}. TDS 4.2 lista só {@code evidence --> shared}, mas TDS
+     * 22.2 exige que a criação de {@code RecordAnnotation} seja auditada ("anotação
+     * criada") na mesma transação (TDS P6) — o que exige {@code AuditService}
+     * ({@code audit.application}). Extensão mínima do grafo, mesmo raciocínio de
+     * {@code configuration --> audit} (M3); ver o relatório do M4, seção Decisões.
+     *
+     * <p>{@code evidence.api} fica de fora de propósito, mesmo padrão de
+     * {@code configuration.api}: resolve {@code CurrentUser} via {@code identity} (autor da
+     * anotação) e {@code sourceCode} via {@code configuration} (filtro de
+     * {@code GET /records}).
+     */
+    public static final ArchRule EVIDENCE_CORE_ONLY_DEPENDS_ON_SHARED_AND_AUDIT =
+            noClasses()
+                    .that().resideInAPackage(ROOT + ".evidence..")
+                    .and().resideOutsideOfPackage(ROOT + ".evidence.api..")
+                    .should().dependOnClassesThat(
+                            resideInAPackage(ROOT + "..")
+                                    .and(not(resideInAnyPackage(
+                                            ROOT + ".evidence..", ROOT + ".shared..", ROOT + ".audit.."))))
+                    .as("evidence.domain/application/infrastructure so dependem de shared e audit");
 
     /** {@code audit} e folha: so pode depender de {@code shared} (viabiliza M1 antes de M2). */
     public static final ArchRule AUDIT_ONLY_DEPENDS_ON_SHARED =
@@ -132,6 +151,26 @@ public final class ArchitectureRules {
                     .should().dependOnClassesThat()
                     .resideInAnyPackage(ROOT + ".matching..", ROOT + ".reconciliation..")
                     .because("importacao nao sabe o que sera feito com os dados (TDS 4.3)");
+
+    /**
+     * {@code ingestion.domain}/{@code application}/{@code parser}/{@code infrastructure}
+     * so dependem de {@code shared}, {@code evidence}, {@code configuration} e
+     * {@code audit} — as arestas que a TDS 4.2 lista para {@code ingestion}.
+     *
+     * <p>{@code ingestion.api} fica de fora de proposito, mesmo padrao de
+     * {@code configuration.api}/{@code evidence.api}: resolve {@code CurrentUser} via
+     * {@code identity} para saber quem fez upload.
+     */
+    public static final ArchRule INGESTION_CORE_ONLY_DEPENDS_ON_ALLOWED_MODULES =
+            noClasses()
+                    .that().resideInAPackage(ROOT + ".ingestion..")
+                    .and().resideOutsideOfPackage(ROOT + ".ingestion.api..")
+                    .should().dependOnClassesThat(
+                            resideInAPackage(ROOT + "..")
+                                    .and(not(resideInAnyPackage(
+                                            ROOT + ".ingestion..", ROOT + ".shared..", ROOT + ".evidence..",
+                                            ROOT + ".configuration..", ROOT + ".audit.."))))
+                    .as("ingestion.domain/application/parser/infrastructure so dependem de shared, evidence, configuration e audit");
 
     /**
      * {@code analytics} e somente leitura, por construcao.
@@ -230,10 +269,11 @@ public final class ArchitectureRules {
                 NO_MODULE_DEPENDS_ON_THE_API_LAYER,
                 MATCHING_DOES_NOT_DEPEND_ON_DIVERGENCE,
                 MATCHING_DOES_NOT_DEPEND_ON_CONFIGURATION,
-                EVIDENCE_ONLY_DEPENDS_ON_SHARED,
+                EVIDENCE_CORE_ONLY_DEPENDS_ON_SHARED_AND_AUDIT,
                 AUDIT_ONLY_DEPENDS_ON_SHARED,
                 CONFIGURATION_CORE_ONLY_DEPENDS_ON_SHARED_AND_AUDIT,
                 INGESTION_DOES_NOT_DEPEND_ON_MATCHING_OR_RECONCILIATION,
+                INGESTION_CORE_ONLY_DEPENDS_ON_ALLOWED_MODULES,
                 ANALYTICS_NEVER_WRITES,
                 MATCHING_DOES_NOT_READ_THE_CLOCK,
                 MATCHING_DOES_NOT_REFERENCE_SCORE_TYPES,

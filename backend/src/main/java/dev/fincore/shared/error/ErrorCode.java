@@ -35,6 +35,12 @@ public enum ErrorCode {
     /** Já existe uma regra de taxa ativa para esta fonte e meio de pagamento (M3, TDS 7.3). */
     FEE_RULE_ALREADY_ACTIVE(HttpStatus.CONFLICT, "Regra de taxa já ativa"),
 
+    /** Mesmo conteúdo, fonte e data de referência já foram importados (M5, TDS 9.7, I-6). */
+    DUPLICATE_FILE(HttpStatus.CONFLICT, "Arquivo já importado"),
+
+    /** Upload acima do limite de tamanho aprovado (M5, TDS 9.1). */
+    PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "Arquivo excede o limite permitido"),
+
     /** Falha não prevista. A resposta carrega apenas o correlationId. */
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Erro interno");
 

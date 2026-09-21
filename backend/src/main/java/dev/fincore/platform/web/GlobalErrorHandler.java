@@ -5,6 +5,8 @@ import dev.fincore.configuration.application.StaleConfigurationVersionException;
 import dev.fincore.identity.application.InvalidCredentialsException;
 import dev.fincore.identity.application.RefreshTokenInvalidException;
 import dev.fincore.identity.application.RefreshTokenReuseDetectedException;
+import dev.fincore.ingestion.application.DuplicateFileException;
+import dev.fincore.ingestion.application.UploadTooLargeException;
 import dev.fincore.shared.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -151,6 +153,35 @@ public class GlobalErrorHandler extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
     }
 
+    /** Mesmo conteúdo, fonte e data de referência já foram importados ({@code uq_import_batch_content}, I-6). */
+    @ExceptionHandler(DuplicateFileException.class)
+    ResponseEntity<ProblemDetail> handleDuplicateFile(DuplicateFileException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.DUPLICATE_FILE, detailFor(ErrorCode.DUPLICATE_FILE), request.getRequestURI());
+        problem.setProperty("originalImportBatchId", exception.originalImportBatchId());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
+    // MaxUploadSizeExceededException (o limite do próprio resolvedor de multipart do
+    // Spring) não tem @ExceptionHandler próprio aqui de propósito: desde este Spring Boot,
+    // ResponseEntityExceptionHandler já a trata via seu handleException(...) consolidado —
+    // um handler explícito para o mesmo tipo aqui é rejeitado como ambíguo na
+    // inicialização. Ela cai no handleExceptionInternal já sobrescrito acima, que traduz
+    // o status (413) via ErrorCode.forStatus.
+
+    /**
+     * O limite de negócio ({@code fincore.ingestion.max-upload-bytes}, TDS 9.1/9.4:
+     * "Tamanho" → 413) — verificado explicitamente em {@code ImportFileUseCase} porque o
+     * limite do resolvedor de multipart do Spring depende do contêiner servlet real, que o
+     * MockMvc não reproduz fielmente para ser testado.
+     */
+    @ExceptionHandler(UploadTooLargeException.class)
+    ResponseEntity<ProblemDetail> handleUploadTooLarge(UploadTooLargeException exception, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetailFactory.create(
+                ErrorCode.PAYLOAD_TOO_LARGE, detailFor(ErrorCode.PAYLOAD_TOO_LARGE), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(problem);
+    }
+
     private static ResponseEntity<ProblemDetail> unauthenticated(HttpServletRequest request) {
         ProblemDetail problem = ProblemDetailFactory.create(
                 ErrorCode.UNAUTHENTICATED, detailFor(ErrorCode.UNAUTHENTICATED), request.getRequestURI());
@@ -189,6 +220,8 @@ public class GlobalErrorHandler extends ResponseEntityExceptionHandler {
             case CONFIGURATION_VERSION_CONFLICT ->
                     "A configuração foi alterada por outra requisição. Releia o recurso e tente de novo.";
             case FEE_RULE_ALREADY_ACTIVE -> "Já existe uma regra de taxa ativa para esta fonte e meio de pagamento.";
+            case DUPLICATE_FILE -> "Este arquivo, para esta fonte e data de referência, já foi importado.";
+            case PAYLOAD_TOO_LARGE -> "O arquivo excede o tamanho máximo permitido para upload.";
             case INTERNAL_ERROR -> "Ocorreu uma falha inesperada. Informe o correlationId ao suporte.";
         };
     }
