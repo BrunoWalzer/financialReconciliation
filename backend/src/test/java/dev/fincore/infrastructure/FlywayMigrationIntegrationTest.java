@@ -75,10 +75,18 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                     assertThat(row.get("script")).isEqualTo("V6__evidence_fk_import.sql");
                     assertThat(row.get("success")).isEqualTo(true);
                 });
+
+        assertThat(applied)
+                .as("V7 precisa constar no historico do Flyway")
+                .anySatisfy(row -> {
+                    assertThat(row.get("version")).isEqualTo("7");
+                    assertThat(row.get("script")).isEqualTo("V7__matching.sql");
+                    assertThat(row.get("success")).isEqualTo(true);
+                });
     }
 
     @Test
-    void deveManterOSchemaSemTabelaAlemDasEntreguesAteOM5() {
+    void deveManterOSchemaSemTabelaAlemDasEntreguesAteOM9() {
         List<String> tables = jdbc.queryForList(
                 """
                 select table_name
@@ -89,11 +97,12 @@ class FlywayMigrationIntegrationTest extends AbstractIntegrationTest {
                 String.class);
 
         assertThat(tables)
-                .as("ate o M5, nenhuma tabela de matching/reconciliação existe ainda")
+                .as("ate o M9, nenhuma tabela de reconciliação/divergência existe ainda")
                 .containsExactlyInAnyOrder(
                         "flyway_schema_history", "audit_event", "app_user", "user_role", "refresh_token",
                         "login_throttle", "source", "source_pair", "tolerance_config", "fee_rule",
                         "settlement_window", "coverage_expectation", "financial_record", "record_integrity_flag",
-                        "record_annotation", "import_batch", "rejected_record");
+                        "record_annotation", "import_batch", "rejected_record",
+                        "match", "match_participant", "match_claim", "match_rejection");
     }
 }

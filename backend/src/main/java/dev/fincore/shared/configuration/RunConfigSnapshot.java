@@ -2,6 +2,7 @@ package dev.fincore.shared.configuration;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * O que uma execução de conciliação congela ao entrar em {@code RUNNING} (TDS 10.2) — o
@@ -42,6 +43,12 @@ public record RunConfigSnapshot(
             String sourceCode, String paymentMethod, int percentageBp, long fixedAmountMinor, String roundingMode) {
     }
 
-    public record SourceSnapshot(String code, String timezone) {
+    /**
+     * {@code id} entra no M9: {@code matching.domain} só recebe o {@code sourceId} (UUID) de
+     * cada {@code FinancialRecord} — sem ele, não haveria como saber a qual fonte um
+     * registro pertence para resolver {@code FeeRuleSnapshot.sourceCode()} sem que
+     * {@code matching} dependesse de {@code configuration} (proibido, TDS 4.3).
+     */
+    public record SourceSnapshot(UUID id, String code, String timezone) {
     }
 }

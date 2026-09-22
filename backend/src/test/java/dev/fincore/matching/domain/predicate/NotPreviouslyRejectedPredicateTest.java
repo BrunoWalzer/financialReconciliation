@@ -1,0 +1,31 @@
+package dev.fincore.matching.domain.predicate;
+
+import static dev.fincore.matching.domain.EvaluationContextFixture.context;
+import static dev.fincore.matching.domain.FinancialRecordFixture.aRecord;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import dev.fincore.evidence.domain.FinancialRecord;
+import dev.fincore.matching.domain.RecordPair;
+import org.junit.jupiter.api.Test;
+
+class NotPreviouslyRejectedPredicateTest {
+
+    private final NotPreviouslyRejectedPredicate predicate = new NotPreviouslyRejectedPredicate();
+
+    @Test
+    void devePassarQuandoParNuncaFoiRecusado() {
+        FinancialRecord left = aRecord().build();
+        FinancialRecord right = aRecord().build();
+
+        assertThat(predicate.test(new RecordPair(left, right), context().build()).passed()).isTrue();
+    }
+
+    @Test
+    void deveFalharQuandoParJaFoiRecusadoIndependenteDaOrdem() {
+        FinancialRecord left = aRecord().build();
+        FinancialRecord right = aRecord().build();
+        var ctx = context().rejected(right.id(), left.id()).build();
+
+        assertThat(predicate.test(new RecordPair(left, right), ctx).passed()).isFalse();
+    }
+}

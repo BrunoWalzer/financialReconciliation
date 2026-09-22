@@ -100,6 +100,6 @@ public class ConfigSnapshotFactory {
     }
 
     private static SourceSnapshot toSnapshot(Source source) {
-        return new SourceSnapshot(source.code(), source.timezone());
+        return new SourceSnapshot(source.id(), source.code(), source.timezone());
     }
 }
