@@ -1,5 +1,8 @@
-package dev.fincore.matching.domain;
+package dev.fincore.matching.infrastructure;
 
+import dev.fincore.matching.domain.AmountEvaluation;
+import dev.fincore.matching.domain.MatchEvidence;
+import dev.fincore.matching.domain.MatchProposal;
 import dev.fincore.shared.identifier.Uuid7;
 import dev.fincore.shared.money.Currency;
 import dev.fincore.shared.money.Money;
@@ -22,6 +25,10 @@ import org.hibernate.type.SqlTypes;
  * são {@code NOT NULL} mesmo quando zero — as duas colunas que impedem valor de "evaporar"
  * silenciosamente (TDS 8.3).
  *
+ * <p>Entidade de persistência pura — vive em {@code matching.infrastructure}, não em
+ * {@code matching.domain}: nada no motor de matching (que trabalha só com
+ * {@link MatchProposal}, {@link AmountEvaluation} etc., VOs puros) referencia esta classe.
+ *
  * <p>Só o caminho {@link #automatic} existe neste milestone: criação manual (origin
  * {@code MANUAL}) é responsabilidade da resolução manual (M14), que ainda não existe. A
  * restrição {@code ck_match_manual_requires_justification} (V7) já protege a forma da
@@ -31,6 +38,11 @@ import org.hibernate.type.SqlTypes;
  * {@code matching.application}, nunca esta entidade: {@link MatchEvidence} é um record puro
  * de domínio, sem dependência de Jackson, e {@code matching.domain} não deveria carregar uma
  * biblioteca de serialização só para isto (mesmo padrão de {@code AuditEvent.beforeState}).
+ *
+ * <p>Tem {@code @Version}: para entidades com essa anotação, o Spring Data trata
+ * {@code version == 0} como "nova" e chama {@code entityManager.persist()} corretamente por
+ * si só — diferente de {@link MatchClaim}/{@link MatchParticipant}, que não têm
+ * {@code @Version} e precisam de {@code Persistable} explícito pelo mesmo motivo.
  */
 @Entity
 @Table(name = "match")

@@ -1,6 +1,5 @@
 package dev.fincore.matching.infrastructure;
 
-import dev.fincore.matching.domain.MatchRejection;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;

@@ -1,13 +1,18 @@
-package dev.fincore.matching.domain;
+package dev.fincore.matching.infrastructure;
 
+import dev.fincore.matching.domain.RejectedPair;
 import dev.fincore.shared.identifier.Uuid7;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 /**
  * Um par humano recusado como correspondência (I-10, TDS 7.6) — o que
@@ -15,10 +20,17 @@ import java.util.UUID;
  * a tabela nasce agora porque o predicado já a consulta. {@code recordAId}/{@code recordBId}
  * seguem a ordem canônica (menor UUID primeiro) da própria constraint do banco — ver
  * {@link RejectedPair}, que já normaliza a ordem no lado do domínio puro.
+ *
+ * <p>Entidade de persistência pura — vive em {@code matching.infrastructure}, não em
+ * {@code matching.domain}. Implementa {@link Persistable} pelo mesmo motivo de
+ * {@link MatchClaim}/{@link MatchParticipant} (sem {@code @Version}, id sempre não nulo na
+ * construção) — aqui o risco prático é menor ({@code id} é gerado por {@link Uuid7}, nunca
+ * compartilhado entre duas inserções concorrentes), mas a correção fica uniforme para toda
+ * entidade de matching sem versão, em vez de depender de cada uma "dar sorte".
  */
 @Entity
 @Table(name = "match_rejection")
-public class MatchRejection {
+public class MatchRejection implements Persistable<UUID> {
 
     @Id
     @Column(name = "id", nullable = false, updatable = false)
@@ -42,6 +54,9 @@ public class MatchRejection {
     @Column(name = "divergence_id", updatable = false)
     private UUID divergenceId;
 
+    @Transient
+    private boolean isNew = true;
+
     /** Exigido pelo JPA. Nunca chamado pela aplicação. */
     protected MatchRejection() {
     }
@@ -57,6 +72,23 @@ public class MatchRejection {
             throw new IllegalArgumentException("reason é obrigatório");
         }
         this.reason = reason;
+        this.isNew = true;
+    }
+
+    @Override
+    public UUID getId() {
+        return id;
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.isNew = false;
     }
 
     public UUID id() {

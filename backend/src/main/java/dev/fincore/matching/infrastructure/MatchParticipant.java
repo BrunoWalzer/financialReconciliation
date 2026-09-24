@@ -1,4 +1,4 @@
-package dev.fincore.matching.domain;
+package dev.fincore.matching.infrastructure;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -6,10 +6,14 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import java.io.Serializable;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 /**
  * Quem compõe um {@link Match} (Domain §5.2, TDS 7.6): exatamente dois {@code PRINCIPAL} (um
@@ -22,11 +26,18 @@ import java.util.UUID;
  * {@code FinancialRecord}: {@code matching} não precisa navegar o grafo de objeto do
  * registro para persistir participação, só a chave — mesmo padrão de
  * {@code FinancialRecord.sourceId} (UUID cru, não uma relação para {@code Source}).
+ *
+ * <p>Entidade de persistência pura — vive em {@code matching.infrastructure}, não em
+ * {@code matching.domain}: nada no motor de matching a referencia diretamente.
+ *
+ * <p>Implementa {@link Persistable} pelo mesmo motivo de {@link MatchClaim}: chave composta
+ * sempre não nula na construção, sem {@code @Version}, o que faria o Spring Data tratar toda
+ * instância nova como já existente e chamar {@code merge()} em vez de {@code persist()}.
  */
 @Entity
 @Table(name = "match_participant")
 @IdClass(MatchParticipant.ParticipantId.class)
-public class MatchParticipant {
+public class MatchParticipant implements Persistable<MatchParticipant.ParticipantId> {
 
     public enum Side {
         LEFT, RIGHT
@@ -52,6 +63,9 @@ public class MatchParticipant {
     @Column(name = "role", nullable = false, updatable = false)
     private Role role;
 
+    @Transient
+    private boolean isNew = true;
+
     /** Exigido pelo JPA. Nunca chamado pela aplicação. */
     protected MatchParticipant() {
     }
@@ -61,6 +75,23 @@ public class MatchParticipant {
         this.financialRecordId = Objects.requireNonNull(financialRecordId, "financialRecordId é obrigatório");
         this.side = Objects.requireNonNull(side, "side é obrigatório");
         this.role = Objects.requireNonNull(role, "role é obrigatório");
+        this.isNew = true;
+    }
+
+    @Override
+    public ParticipantId getId() {
+        return new ParticipantId(matchId, financialRecordId);
+    }
+
+    @Override
+    public boolean isNew() {
+        return isNew;
+    }
+
+    @PostLoad
+    @PostPersist
+    void markNotNew() {
+        this.isNew = false;
     }
 
     public UUID matchId() {

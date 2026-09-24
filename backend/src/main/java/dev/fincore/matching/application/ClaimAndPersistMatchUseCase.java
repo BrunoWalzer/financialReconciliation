@@ -6,19 +6,19 @@ import dev.fincore.audit.application.AuditEventRequest;
 import dev.fincore.audit.application.AuditService;
 import dev.fincore.audit.domain.ActorRef;
 import dev.fincore.evidence.domain.FinancialRecord;
-import dev.fincore.matching.domain.Match;
-import dev.fincore.matching.domain.MatchClaim;
 import dev.fincore.matching.domain.MatchEvidence;
-import dev.fincore.matching.domain.MatchParticipant;
 import dev.fincore.matching.domain.MatchProposal;
+import dev.fincore.matching.infrastructure.Match;
+import dev.fincore.matching.infrastructure.MatchClaim;
 import dev.fincore.matching.infrastructure.MatchClaimRepository;
+import dev.fincore.matching.infrastructure.MatchParticipant;
 import dev.fincore.matching.infrastructure.MatchParticipantRepository;
 import dev.fincore.matching.infrastructure.MatchRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.UUID;
-import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.hibernate.JDBCException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -99,14 +99,19 @@ class ClaimAndPersistMatchUseCase {
         try {
             claimRepository.save(new MatchClaim(financialRecordId, matchId, now));
             entityManager.flush();
-        } catch (DataIntegrityViolationException | ConstraintViolationException e) {
+        } catch (DataAccessException | JDBCException e) {
             // save() por si só pode lançar o tipo traduzido do Spring (proxy de repositório
-            // Spring Data, DataIntegrityViolationException); o flush() explícito logo depois,
-            // por ser EntityManager cru, não passa pela tradução de exceção do Spring e
-            // propaga a exceção nativa do Hibernate (ConstraintViolationException). A única
-            // coisa que pode falhar exatamente aqui é a PK de match_claim (I-5):
+            // Spring Data, DataAccessException); o flush() explícito logo depois, por ser
+            // EntityManager cru, não passa pela tradução de exceção do Spring e propaga o
+            // tipo nativo do Hibernate (JDBCException). Captura pela RAIZ de cada hierarquia
+            // — não só ConstraintViolationException/DataIntegrityViolationException — porque
+            // sob concorrência real duas transações disputando a mesma linha podem observar
+            // a colisão através de subtipos diferentes dependendo de timing (ex.:
+            // LockAcquisitionException em vez de ConstraintViolationException); descoberto
+            // por instabilidade real em CI sob maior contenção do que o ambiente local. A
+            // única coisa que pode falhar exatamente aqui é a PK de match_claim (I-5):
             // financial_record_id e match_id já foram validados antes deste ponto na mesma
-            // transação.
+            // transação — qualquer exceção de persistência aqui só pode ser essa colisão.
             throw new MatchClaimConflictException(financialRecordId, e);
         }
     }

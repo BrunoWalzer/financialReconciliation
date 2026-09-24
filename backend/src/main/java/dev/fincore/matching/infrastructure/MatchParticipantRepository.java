@@ -1,6 +1,5 @@
 package dev.fincore.matching.infrastructure;
 
-import dev.fincore.matching.domain.MatchParticipant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.repository.Repository;
